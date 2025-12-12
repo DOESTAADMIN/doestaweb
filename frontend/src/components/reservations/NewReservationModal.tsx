@@ -1,31 +1,49 @@
 import { useState, useEffect } from "react";
-import { FaTimes, FaPlus, FaSearch } from "react-icons/fa";
-import { guestService } from "@/lib/api";
+import { FaTimes, FaSearch, FaPlus } from "react-icons/fa";
+import { reservationService, guestService } from "@/lib/api";
+import GuestDetailModal from "../reservations/GuestDetailModal";
 
 interface NewReservationModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: any) => Promise<void>;
+    onSubmit: (data: any) => void;
+    initialRoom?: string;
+    initialDate?: string;
 }
 
-export default function NewReservationModal({ isOpen, onClose, onSubmit }: NewReservationModalProps) {
-    const [step, setStep] = useState(1);
-    const [loading, setLoading] = useState(false);
-
-    // Form States
+export default function NewReservationModal({ isOpen, onClose, onSubmit, initialRoom, initialDate }: NewReservationModalProps) {
     const [guestName, setGuestName] = useState("");
     const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    // New Guest Modal State
+    const [guestModalOpen, setGuestModalOpen] = useState(false);
 
     const [formData, setFormData] = useState({
-        room: "",
-        checkIn: new Date().toISOString().split('T')[0],
-        checkOut: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+        room: initialRoom || "",
+        checkIn: initialDate || new Date().toISOString().split('T')[0],
+        checkOut: initialDate ? new Date(new Date(initialDate).getTime() + 86400000).toISOString().split('T')[0] : new Date(Date.now() + 86400000).toISOString().split('T')[0],
         adults: "1",
         children: "0",
         agency: "ONLINE",
         board: "BB",
         balance: "100"
     });
+
+    // Reset/Initialize when modal opens or initialRoom changes
+    useEffect(() => {
+        if (isOpen) {
+            console.log("NewReservationModal opened for room:", initialRoom);
+            setFormData(prev => ({
+                ...prev,
+                room: initialRoom || "",
+                checkIn: initialDate || new Date().toISOString().split('T')[0],
+                checkOut: initialDate ? new Date(new Date(initialDate).getTime() + 86400000).toISOString().split('T')[0] : new Date(Date.now() + 86400000).toISOString().split('T')[0]
+            }));
+            setGuestName("");
+            setSearchResults([]);
+        }
+    }, [isOpen, initialRoom, initialDate]);
 
     useEffect(() => {
         if (guestName.length > 2) {
@@ -87,7 +105,11 @@ export default function NewReservationModal({ isOpen, onClose, onSubmit }: NewRe
                                         required
                                     />
                                 </div>
-                                <button type="button" className="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg font-bold text-sm hover:bg-blue-200 transition-colors flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setGuestModalOpen(true)}
+                                    className="px-4 py-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg font-bold text-sm hover:bg-blue-200 transition-colors flex items-center gap-2"
+                                >
                                     <FaPlus /> Yeni
                                 </button>
                             </div>
@@ -214,6 +236,21 @@ export default function NewReservationModal({ isOpen, onClose, onSubmit }: NewRe
                         </button>
                     </div>
                 </form>
+
+                {/* Guest Create Modal */}
+                <GuestDetailModal
+                    isOpen={guestModalOpen}
+                    onClose={() => setGuestModalOpen(false)}
+                    onSave={(newGuest) => {
+                        // Optimistically set the guest name
+                        const fullName = `${newGuest.firstName} ${newGuest.lastName}`;
+                        setGuestName(fullName);
+                        setGuestModalOpen(false);
+                        // In a real scenario, you might want to create the guest via API here and get the ID
+                        // For now we trust the flow or assume simple string based guest
+                    }}
+                    initialData={{ firstName: guestName }}
+                />
             </div>
         </div>
     );

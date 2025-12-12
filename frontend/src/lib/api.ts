@@ -62,6 +62,12 @@ export const roomService = {
         const response = await api.delete(`/rooms/${id}`);
         return response.data;
     },
+    
+    // Room Plan
+    getRoomPlan: async (filters?: { floor?: string; type?: string; status?: string }) => {
+        const response = await api.get('/rooms/room-plan', { params: filters });
+        return response.data;
+    },
 
     // --- Definitions ---
     getBedTypes: () => api.get('/bedtypes').then(r => r.data),

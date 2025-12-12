@@ -103,4 +103,84 @@ public class RoomsController : ControllerBase
         await _context.SaveChangesAsync();
         return Ok(room);
     }
+
+    [HttpGet("room-plan")]
+    public async Task<ActionResult<IEnumerable<RoomPlanDto>>> GetRoomPlan([FromQuery] string? floor, [FromQuery] string? type, [FromQuery] string? status)
+    {
+        // 1. Get all rooms (apply filters if simple)
+        var query = _context.Rooms.AsQueryable();
+
+        if (!string.IsNullOrEmpty(floor))
+            query = query.Where(r => r.Floor == floor);
+            
+        if (!string.IsNullOrEmpty(type))
+            query = query.Where(r => r.Type == type);
+            
+        // Status filter is tricky because it could be Room Status (Clean/Dirty) OR Reservation Status (Occupied)
+        // We will apply status filter after merging if possible, or simple room status here.
+        // Let's assume 'status' param might filter IsOccupied/Clean/Dirty later.
+        
+        var rooms = await query.ToListAsync();
+
+        // 2. Get active reservations for today
+        // Active = CheckIn <= Today < CheckOut AND Status != Cancelled/NoShow
+        var today = DateTime.Today; // Use server local time or UtcNow based on preference. Reservations usually stored as dates.
+        // If dates are DateTime, we should be careful. Assuming just Date comparison.
+        
+        var activeReservations = await _context.Reservations
+            .Where(r => r.Status != "Cancelled" && r.Status != "NoShow" && r.Status != "CheckedOut"
+                        && r.CheckInDate.Date <= today && r.CheckOutDate.Date > today)
+            .ToListAsync();
+
+        // 3. Merge data
+        var roomPlans = rooms.Select(room =>
+        {
+            var res = activeReservations.FirstOrDefault(r => r.RoomId == room.Id);
+            var isOccupied = res != null;
+
+            // Determine effective status for UI
+            // If Occupied -> "Occupied"
+            // Else -> room.Status (Clean, Dirty)
+            var uiStatus = isOccupied ? "Occupied" : room.Status;
+
+            return new RoomPlanDto
+            {
+                Id = room.Id,
+                Number = room.Number,
+                Type = room.Type,
+                BedType = room.BedType,
+                Status = uiStatus, // Use effective status
+                Floor = room.Floor,
+                View = room.View,
+                
+                IsOccupied = isOccupied,
+                GuestName = res?.GuestName,
+                Pax = res != null ? (res.AdultCount + res.ChildCount) : 0,
+                CheckInDate = res?.CheckInDate,
+                CheckOutDate = res?.CheckOutDate,
+                ReservationId = res?.Id,
+                ReservationStatus = res?.Status,
+                
+                IsDirty = room.Status == "Dirty" || (isOccupied && room.Status == "Dirty"), // Keep track if physically dirty
+                IsDeleted = room.IsDeleted,
+                IsPassive = room.IsPassive
+            };
+        });
+
+        // 4. Apply complex status filter if needed
+        if (!string.IsNullOrEmpty(status))
+        {
+            // If status is "Occupied", "Vacant", "Clean", "Dirty"
+             if (status == "Occupied")
+                roomPlans = roomPlans.Where(rp => rp.IsOccupied);
+             else if (status == "Vacant")
+                roomPlans = roomPlans.Where(rp => !rp.IsOccupied);
+             else if (status == "Clean")
+                 roomPlans = roomPlans.Where(rp => rp.Status == "Clean" && !rp.IsOccupied); // Assuming Clean implies Vacant Clean
+             else if (status == "Dirty")
+                 roomPlans = roomPlans.Where(rp => rp.Status == "Dirty" || rp.IsDirty);
+        }
+
+        return Ok(roomPlans);
+    }
 }
