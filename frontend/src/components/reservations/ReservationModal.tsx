@@ -95,20 +95,27 @@ export default function ReservationModal({ isOpen, onClose, initialData, onSave 
         // If reservation ID exists, persist immediately
         if (formData.id) {
             try {
+                // Ensure date is null if empty string to avoid API 400
+                const apiGuestData = {
+                    ...guestData,
+                    birthDate: guestData.birthDate || null,
+                    reservationId: formData.id
+                };
+
                 // If it's a new guest on an existing reservation, create it
                 if (!selectedGuestForEdit || (selectedGuestForEdit.id === 0)) {
-                    await api.post(`/reservations/${formData.id}/guests`, { ...guestData, reservationId: formData.id });
+                    await api.post(`/reservations/${formData.id}/guests`, apiGuestData);
                 } else {
                     // Update existing
                     if (selectedGuestForEdit.id) {
-                        await reservationService.updateGuest(selectedGuestForEdit.id, guestData);
+                        await reservationService.updateGuest(selectedGuestForEdit.id, apiGuestData);
                     }
                 }
                 toast.success("Misafir listesi güncellendi.");
                 if (loadReservation) loadReservation(formData.id); // Reload to get fresh IDs
             } catch (e) {
                 console.error(e);
-                toast.error("Misafir sunucuya kaydedilemedi, ancak yerel olarak eklendi.");
+                toast.error("Misafir sunucuya kaydedilemedi.");
             }
         }
     };
@@ -198,57 +205,7 @@ export default function ReservationModal({ isOpen, onClose, initialData, onSave 
             if (!data.requests && (data as any).Requests) data.requests = (data as any).Requests;
             if (!data.notes && (data as any).Notes) data.notes = (data as any).Notes;
 
-            // 1. Patch for Main Guest missing in guests list (Empty List Case)
-            if ((!data.guests || data.guests.length === 0)) {
-                // ... (Existing logic for empty list)
-                const mainGuestName = (data as any).guestName || (data as any).GuestName || "Misafir " + data.id;
-                const [firstName, ...rest] = mainGuestName.split(' ');
-                const lastName = rest.join(' ') || "Yılmaz";
-
-                const newGuest: ReservationGuest = {
-                    id: 0,
-                    reservationId: data.id,
-                    firstName: firstName || "İsimsiz",
-                    lastName: lastName,
-                    email: `guest${data.id}@example.com`,
-                    phone: "555" + Math.floor(1000000 + Math.random() * 9000000),
-                    nationality: "TR",
-                    passportNo: "TR" + Math.floor(10000000000 + Math.random() * 90000000000),
-                    idNumber: (Math.floor(10000000000 + Math.random() * 90000000000)).toString(),
-                    birthDate: new Date(1980 + Math.floor(Math.random() * 20), 0, 1).toISOString(),
-                    isMainGuest: true
-                };
-                data.guests = [newGuest];
-                reservationService.addGuest(data.id, newGuest).then().catch(console.error);
-                toast.success("Eksik misafir kartı oluşturuldu.");
-            } else {
-                // 2. Patch for EXISTING guests with MISSING data (Incomplete Data Case)
-                // This fixes "tabloda yazan kartta yazan aynı değil" issue where card showed empty fields
-                let fixedCount = 0;
-                const guestsCopy = [...data.guests];
-
-                for (let i = 0; i < guestsCopy.length; i++) {
-                    const g = guestsCopy[i];
-                    let needsUpdate = false;
-
-                    if (!g.phone || g.phone.length < 3) { g.phone = "555" + Math.floor(1000000 + Math.random() * 9000000); needsUpdate = true; }
-                    if (!g.phone || g.phone.length < 3) { g.phone = "555" + Math.floor(1000000 + Math.random() * 9000000); needsUpdate = true; }
-                    if (!g.idNumber) { g.idNumber = (Math.floor(10000000000 + Math.random() * 90000000000)).toString(); needsUpdate = true; }
-                    if (!g.birthDate) { g.birthDate = new Date(1980 + Math.floor(Math.random() * 20), 0, 1).toISOString(); needsUpdate = true; }
-                    if (!g.firstName) { g.firstName = "Misafir"; needsUpdate = true; }
-
-                    if (needsUpdate && g.id > 0) {
-                        fixedCount++;
-                        // Async update in background
-                        reservationService.updateGuest(g.id, g).catch(e => console.error("Auto-fix guest update failed", e));
-                    }
-                }
-
-                if (fixedCount > 0) {
-                    data.guests = guestsCopy;
-                    // toast.success(`${fixedCount} misafir verisi otomatik tamamlandı.`);
-                }
-            }
+            // 1. Patch removed: Do not auto-create guests. User can add manually.
 
 
 
@@ -434,6 +391,14 @@ export default function ReservationModal({ isOpen, onClose, initialData, onSave 
                     if (g.id && g.id < 0) { const { id, ...rest } = g; return rest as ReservationGuest; } // Remove temp IDs
                     return g;
                 });
+
+                // Sync Guest Name from list
+                if (dataToSave.guests.length > 0) {
+                    const main = dataToSave.guests.find(g => g.isMainGuest) || dataToSave.guests[0];
+                    dataToSave.guestName = `${main.firstName} ${main.lastName}`;
+                } else {
+                    dataToSave.guestName = "İsimsiz";
+                }
             }
 
             if (dataToSave.id) {
@@ -664,6 +629,23 @@ export default function ReservationModal({ isOpen, onClose, initialData, onSave 
                             <Copy size={18} />
                             <span className="text-[10px] font-medium">Kopyala</span>
                         </button>
+                        {formData.id && (
+                            <button
+                                onClick={() => {
+                                    if (confirm("Bu rezervasyonu tamamen silmek istediğinize emin misiniz?")) {
+                                        reservationService.delete(formData.id!).then(() => {
+                                            toast.success("Rezervasyon silindi.");
+                                            onClose();
+                                            onSave?.(); // Refresh parent
+                                        }).catch(() => toast.error("Silinemedi."));
+                                    }
+                                }}
+                                className="p-2 hover:bg-red-50 text-red-600 rounded flex flex-col items-center gap-0.5 min-w-[3rem]"
+                            >
+                                <Trash2 size={18} />
+                                <span className="text-[10px] font-medium">Sil</span>
+                            </button>
+                        )}
                         <button className="flex flex-col items-center gap-1 text-gray-500 hover:text-blue-600 transition-colors bg-blue-50/50 p-2 rounded hover:bg-blue-100/50" onClick={handlePrint}>
                             <Printer size={20} strokeWidth={1.5} />
                             <span className="text-[10px] font-medium">Yazdır</span>
@@ -679,8 +661,8 @@ export default function ReservationModal({ isOpen, onClose, initialData, onSave 
                             onClick={handleSave}
                             disabled={isLocked}
                             className={`px-6 py-2 rounded flex items-center gap-2 shadow-sm transition-all transform active:scale-95 ${isLocked
-                                    ? "bg-gray-400 cursor-not-allowed text-white"
-                                    : "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-200"
+                                ? "bg-gray-400 cursor-not-allowed text-white"
+                                : "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-emerald-200"
                                 }`}
                         >
                             <Save size={18} strokeWidth={2} />
@@ -1031,7 +1013,7 @@ export default function ReservationModal({ isOpen, onClose, initialData, onSave 
                                                 <div className="col-span-2">
                                                     <label className="text-[10px] text-gray-400 block mb-1">Satış Tarihi</label>
                                                     <div className="border-b border-gray-300 pb-1 flex justify-between items-center">
-                                                        <span className="text-sm font-bold text-gray-800">{new Date(formData.saleDate).toLocaleDateString("tr-TR")}</span>
+                                                        <span className="text-sm font-bold text-gray-800">{formData.saleDate ? new Date(formData.saleDate).toLocaleDateString("tr-TR") : '-'}</span>
                                                         <Calendar size={14} className="text-gray-400" />
                                                     </div>
                                                 </div>
@@ -1734,14 +1716,14 @@ export default function ReservationModal({ isOpen, onClose, initialData, onSave 
                 isOpen={isJobRecordOpen}
                 onClose={() => { setIsJobRecordOpen(false); setSelectedRequest(null); }}
                 reservationId={formData.id?.toString()}
-                reservationInfo={`${formData.guests?.[0]?.name || ''} ${formData.guests?.[0]?.surname || ''} ${formData.checkInDate ? format(new Date(formData.checkInDate), 'dd.MM') : ''} - ${formData.checkOutDate ? format(new Date(formData.checkOutDate), 'dd.MM.yyyy') : ''} (${formData.id || ''})`}
+                reservationInfo={`${formData.guests?.[0]?.firstName || ''} ${formData.guests?.[0]?.lastName || ''} ${formData.checkInDate ? format(new Date(formData.checkInDate), 'dd.MM') : ''} - ${formData.checkOutDate ? format(new Date(formData.checkOutDate), 'dd.MM.yyyy') : ''} (${formData.id || ''})`}
                 onSave={handleRefresh}
                 initialData={selectedRequest}
             />
             <PackagesModal
                 isOpen={isPackagesOpen}
                 onClose={() => setIsPackagesOpen(false)}
-                reservationInfo={`${formData.guests?.[0]?.name || ''} ${formData.guests?.[0]?.surname || ''} ${formData.checkInDate ? format(new Date(formData.checkInDate), 'dd.MM') : ''} - ${formData.checkOutDate ? format(new Date(formData.checkOutDate), 'dd.MM.yyyy') : ''} (${formData.id || ''})`}
+                reservationInfo={`${formData.guests?.[0]?.firstName || ''} ${formData.guests?.[0]?.lastName || ''} ${formData.checkInDate ? format(new Date(formData.checkInDate), 'dd.MM') : ''} - ${formData.checkOutDate ? format(new Date(formData.checkOutDate), 'dd.MM.yyyy') : ''} (${formData.id || ''})`}
             />
 
             <NoteModal
@@ -1839,6 +1821,16 @@ export default function ReservationModal({ isOpen, onClose, initialData, onSave 
                 title={confirmConfig.title}
                 description={confirmConfig.desc}
             />
+
+            {/* GUEST DETAIL MODAL */}
+            {isGuestDetailOpen && (
+                <GuestDetailModal
+                    isOpen={isGuestDetailOpen}
+                    onClose={() => setIsGuestDetailOpen(false)}
+                    onSave={handleGuestSave}
+                    initialData={selectedGuestForEdit}
+                />
+            )}
         </Dialog >
     );
 }

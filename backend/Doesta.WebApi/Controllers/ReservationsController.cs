@@ -226,6 +226,8 @@ public class ReservationsController : ControllerBase
         _context.ReservationGuests.Add(guest);
         await _context.SaveChangesAsync();
 
+        await UpdateReservationGuestName(id);
+
         return CreatedAtAction(nameof(GetReservation), new { id = id }, guest);
     }
 
@@ -240,7 +242,45 @@ public class ReservationsController : ControllerBase
         _context.Entry(existing).CurrentValues.SetValues(guest);
         await _context.SaveChangesAsync();
 
+        await UpdateReservationGuestName(existing.ReservationId);
+
         return NoContent();
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteReservation(int id)
+    {
+        var reservation = await _context.Reservations.FindAsync(id);
+        if (reservation == null) return NotFound();
+
+        _context.Reservations.Remove(reservation);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+
+    private async Task UpdateReservationGuestName(int reservationId)
+    {
+        var reservation = await _context.Reservations.FindAsync(reservationId);
+        if (reservation == null) return;
+
+        var guests = await _context.ReservationGuests
+            .Where(g => g.ReservationId == reservationId)
+            .ToListAsync();
+
+        if (!guests.Any())
+        {
+            reservation.GuestName = "İsimsiz";
+        }
+        else
+        {
+            var main = guests.FirstOrDefault(g => g.IsMainGuest) ?? guests.First();
+            reservation.GuestName = $"{main.FirstName} {main.LastName}";
+        }
+        
+        // We modify entry state ensuring it's tracked
+        _context.Entry(reservation).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
     }
 
     [HttpDelete("guests/{guestId}")]
@@ -249,8 +289,11 @@ public class ReservationsController : ControllerBase
         var guest = await _context.ReservationGuests.FindAsync(guestId);
         if (guest == null) return NotFound();
 
+        int resId = guest.ReservationId;
         _context.ReservationGuests.Remove(guest);
         await _context.SaveChangesAsync();
+
+        await UpdateReservationGuestName(resId);
 
         return NoContent();
     }

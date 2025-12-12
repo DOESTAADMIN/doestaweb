@@ -7,6 +7,7 @@ import NewReservationModal from "@/components/reservations/NewReservationModal";
 import ReservationModal from "@/components/reservations/ReservationModal";
 import { FaSyncAlt, FaTh, FaList, FaQuestionCircle, FaCheck, FaCheckDouble } from "react-icons/fa";
 import { roomService, reservationService } from "@/lib/api";
+import { toast } from "sonner";
 
 interface RoomPlanItem {
     id: number;
@@ -155,32 +156,58 @@ export default function RoomPlanPage() {
 
     const handleCreateReservation = async (data: any) => {
         try {
+            console.log("Creating reservation with data:", data);
+
             // Find room ID based on number
             const room = allRooms.find(r => r.number === data.room);
-            const roomId = room?.id || 0; // Fallback? Backend expects roomId usually
+            const roomId = room?.id || 0;
+
+            if (!roomId) {
+                toast.error("Oda bulunamadı!");
+                return;
+            }
+
+            // Ensure dates are valid ISO strings (YYYY-MM-DD)
+            // The input type="date" returns YYYY-MM-DD which is good, but let's be safe
+            const checkInDate = new Date(data.checkIn).toISOString();
+            const checkOutDate = new Date(data.checkOut).toISOString();
 
             const formattedData = {
                 roomId: roomId,
-                checkInDate: data.checkIn,
-                checkOutDate: data.checkOut,
-                adultCount: parseInt(data.adults),
-                childCount: parseInt(data.children),
-                guestName: data.guestName,
-                agency: data.agency,
-                boardType: data.board,
-                totalPrice: parseFloat(data.balance),
+                checkInDate: checkInDate,
+                checkOutDate: checkOutDate,
+                adultCount: parseInt(data.adults) || 1, // Fallback to 1
+                childCount: parseInt(data.children) || 0,
+                guestName: data.guestName || "İsimsiz Misafir",
+                // Remove agency string as it conflicts with Agency object in backend model
+                // If we want to store "ONLINE", we need to use a specific field or map to AgencyId
+                // For now, assuming default agency or handled by backend logic if AgencyId is null
+                // agencyId: 1, // Example: 1 = Online
+
+                boardType: data.board || "BB",
+                totalPrice: parseFloat(data.balance) || 0,
                 status: "Confirmed",
                 isPaid: false,
                 paidAmount: 0,
-                // Additional defaults
                 currency: "EUR",
-                roomType: room?.type || "STD"
+                roomType: room?.type || "STD",
+                // Pass guestId if available
+                guestId: data.guestId ? parseInt(data.guestId) : undefined,
+
+                // Add SaleType/Source as alternative for agency string
+                source: data.agency || "ONLINE",
+
+                // Demo/Default fields
+                voucherNo: "WEB-" + Math.floor(Math.random() * 10000)
             };
 
             await reservationService.create(formattedData);
+            toast.success("Rezervasyon oluşturuldu");
             fetchData();
         } catch (error) {
             console.error("Failed to create reservation", error);
+            toast.error("Rezervasyon oluşturulamadı. Lütfen konsolu kontrol edin.");
+            throw error; // Re-throw so modal stays open or handles it
         }
     };
 
@@ -526,7 +553,10 @@ export default function RoomPlanPage() {
             {selectedReservationId && (
                 <ReservationModal
                     isOpen={resDetailModalOpen}
-                    onClose={() => setResDetailModalOpen(false)}
+                    onClose={() => {
+                        setResDetailModalOpen(false);
+                        fetchData(); // Refresh grid when modal closes to reflect live changes (like guest delete, check-in)
+                    }}
                     initialData={{ id: selectedReservationId }}
                     onSave={() => {
                         setResDetailModalOpen(false);

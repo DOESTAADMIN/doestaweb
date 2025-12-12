@@ -263,6 +263,7 @@ export interface Reservation {
 
     realCheckInDate?: string;
     realCheckOutDate?: string;
+    saleDate?: string;
     qTime?: string;
 }
 
@@ -312,6 +313,10 @@ export const reservationService = {
             body: JSON.stringify(data),
         });
         if (!res.ok) throw new Error("Failed to update reservation");
+    },
+    delete: async (id: number) => {
+        const res = await fetch(`${API_URL}/reservations/${id}`, { method: "DELETE" });
+        if (!res.ok) throw new Error("Failed to delete reservation");
     },
     recalculatePrice: async (id: number, manualDailyPrice?: number) => {
         const res = await fetch(`${API_URL}/reservations/${id}/recalculate-price`, {
