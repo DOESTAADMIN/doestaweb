@@ -218,18 +218,38 @@ export default function RoomPlanPage() {
         if (selectedRoomIds.length === 0) return;
 
         // Optimistic Update for ALL selected rooms
-        const isDirty = action === 'Dirty';
-        const newStatus = action === 'Clean' ? 'Clean' : 'Dirty';
+        setAllRooms(prev => prev.map(r => {
+            if (selectedRoomIds.includes(r.id)) {
+                // If Clean/Dirty, occupied rooms show "Occupied" but track dirty state
+                // If Block/Maintenance, they might override everything or fail if occupied. 
+                // Creating a simplified optimistic logic here:
 
-        setAllRooms(prev => prev.map(r => selectedRoomIds.includes(r.id) ? { ...r, status: r.isOccupied ? "Occupied" : newStatus, isDirty: r.isOccupied ? r.isDirty : isDirty } : r));
+                let newIsDirty = r.isDirty;
+                let newStatus = r.status;
 
-        // Processing in background (ideally utilize a bulk endpoint)
+                if (action === 'Clean') {
+                    newIsDirty = false;
+                    newStatus = r.isOccupied ? "Occupied" : "Clean";
+                } else if (action === 'Dirty') {
+                    newIsDirty = true;
+                    // Usually if occupied and marked dirty, it stays Occupied but housekeeping needs to clean
+                    newStatus = r.isOccupied ? "Occupied" : "Dirty";
+                } else {
+                    // Block, Maintenance etc.
+                    newStatus = action;
+                }
+
+                return { ...r, status: newStatus, isDirty: newIsDirty };
+            }
+            return r;
+        }));
+
+        // Processing via bulk endpoint
         try {
-            // Sequential for now to avoid hammering simple backend, or Promise.all
-            await Promise.all(selectedRoomIds.map(id => roomService.updateStatus(id, action)));
+            await roomService.bulkUpdateStatus(selectedRoomIds, action);
         } catch (error) {
             console.error("Bulk action failed", error);
-            fetchData();
+            fetchData(); // specific error recovery
         }
         setSelectedRoomIds([]); // clear selection after action
     };
@@ -485,10 +505,10 @@ export default function RoomPlanPage() {
                         <button onClick={() => handleContextMenuAction("Dirty")} className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-zinc-700 text-red-600">
                             Kirlet
                         </button>
-                        <button className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-zinc-700 text-gray-600">
+                        <button onClick={() => handleContextMenuAction("Block")} className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-zinc-700 text-gray-600">
                             Blokaj Koy
                         </button>
-                        <button className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-zinc-700 text-gray-600">
+                        <button onClick={() => handleContextMenuAction("Maintenance")} className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-zinc-700 text-gray-600">
                             Arızaya Al
                         </button>
                     </div>

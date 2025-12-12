@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { FaTimes, FaSearch, FaPlus } from "react-icons/fa";
 import { reservationService, guestService } from "@/lib/api";
 import GuestDetailModal from "../reservations/GuestDetailModal";
+import { toast } from "sonner";
 
 interface NewReservationModalProps {
     isOpen: boolean;
@@ -241,13 +242,27 @@ export default function NewReservationModal({ isOpen, onClose, onSubmit, initial
                 <GuestDetailModal
                     isOpen={guestModalOpen}
                     onClose={() => setGuestModalOpen(false)}
-                    onSave={(newGuest) => {
-                        // Optimistically set the guest name
-                        const fullName = `${newGuest.firstName} ${newGuest.lastName}`;
-                        setGuestName(fullName);
-                        setGuestModalOpen(false);
-                        // In a real scenario, you might want to create the guest via API here and get the ID
-                        // For now we trust the flow or assume simple string based guest
+                    onSave={async (newGuest) => {
+                        try {
+                            setLoading(true);
+                            // 1. Create Guest in Backend
+                            const createdGuest = await guestService.create(newGuest);
+
+                            // 2. Update Form with new guest details
+                            const fullName = `${createdGuest.firstName} ${createdGuest.lastName}`;
+                            setGuestName(fullName);
+
+                            // Store guestId in formData or separate state to pass to parent
+                            setFormData(prev => ({ ...prev, guestId: createdGuest.id }));
+
+                            toast.success("Misafir başarıyla oluşturuldu.");
+                            setGuestModalOpen(false);
+                        } catch (error) {
+                            console.error("Failed to create guest", error);
+                            toast.error("Misafir oluşturulurken hata oluştu.");
+                        } finally {
+                            setLoading(false);
+                        }
                     }}
                     initialData={{ firstName: guestName }}
                 />

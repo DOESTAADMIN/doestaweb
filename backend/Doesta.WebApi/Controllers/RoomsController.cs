@@ -88,20 +88,70 @@ public class RoomsController : ControllerBase
         return Ok("Seeded 20 rooms");
     }
     // Housekeeping Status Update
+    // Housekeeping Status Update
     [HttpPut("{id}/status")]
     public async Task<IActionResult> UpdateStatus(int id, [FromBody] string status)
     {
         var room = await _context.Rooms.FindAsync(id);
         if (room == null) return NotFound();
 
-        // Validate status if needed (Clean, Dirty, InProgr, DND, Occupied)
-        room.Status = status;
-        
-        // If status is "Clean", maybe reset IsOccupied if it was false? 
-        // Logic: Housekeeping usually cleans dirty rooms after checkout.
+        UpdateRoomStatusLogic(room, status);
         
         await _context.SaveChangesAsync();
         return Ok(room);
+    }
+
+    [HttpPost("bulk-status")]
+    public async Task<IActionResult> BulkUpdateStatus([FromBody] BulkStatusRequest request)
+    {
+        if (request == null || request.RoomIds == null || !request.RoomIds.Any()) return BadRequest("No rooms selected");
+
+        var rooms = await _context.Rooms.Where(r => request.RoomIds.Contains(r.Id)).ToListAsync();
+        foreach (var room in rooms)
+        {
+            UpdateRoomStatusLogic(room, request.Status);
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(rooms);
+    }
+
+    private void UpdateRoomStatusLogic(Room room, string status)
+    {
+        // Normalize status
+        // Clean, Dirty, Block, Maintenance
+        
+        if (status == "Clean")
+        {
+            room.Status = "Clean";
+            room.IsPassive = false;
+        }
+        else if (status == "Dirty")
+        {
+            room.Status = "Dirty";
+            room.IsPassive = false;
+        }
+        else if (status == "Block" || status == "Blokaj")
+        {
+            room.Status = "Block";
+            room.IsPassive = true;
+        }
+        else if (status == "Maintenance" || status == "Ariza" || status == "Out of Order")
+        {
+            room.Status = "Maintenance";
+            room.IsPassive = true;
+        }
+        else
+        {
+            // Fallback
+            room.Status = status;
+        }
+    }
+
+    public class BulkStatusRequest
+    {
+        public List<int> RoomIds { get; set; }
+        public string Status { get; set; }
     }
 
     [HttpGet("room-plan")]

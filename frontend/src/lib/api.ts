@@ -62,7 +62,7 @@ export const roomService = {
         const response = await api.delete(`/rooms/${id}`);
         return response.data;
     },
-    
+
     // Room Plan
     getRoomPlan: async (filters?: { floor?: string; type?: string; status?: string }) => {
         const response = await api.get('/rooms/room-plan', { params: filters });
@@ -82,6 +82,10 @@ export const roomService = {
     },
     updateStatus: async (id: number, status: string) => {
         const response = await api.put(`/rooms/${id}/status`, JSON.stringify(status));
+        return response.data;
+    },
+    bulkUpdateStatus: async (roomIds: number[], status: string) => {
+        const response = await api.post('/rooms/bulk-status', { roomIds, status });
         return response.data;
     }
 };
