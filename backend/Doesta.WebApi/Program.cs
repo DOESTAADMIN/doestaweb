@@ -22,16 +22,18 @@ builder.Services.AddControllers().AddJsonOptions(x =>
 builder.Services.AddOpenApi();
 
 // DbContext
-if (builder.Environment.IsDevelopment())
-{
+// DbContext
+// FORCE SQLITE FOR THIS DEPLOYMENT per user request to migrate local data
+// if (builder.Environment.IsDevelopment())
+// {
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
-}
-else
-{
-    builder.Services.AddDbContext<ApplicationDbContext>(options =>
-        options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-}
+// }
+// else
+// {
+//     builder.Services.AddDbContext<ApplicationDbContext>(options =>
+//         options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// }
 
 var app = builder.Build();
 

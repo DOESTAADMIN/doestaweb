@@ -12,7 +12,11 @@ public class ApplicationDbContext : DbContext
     public DbSet<ReservationGuest> ReservationGuests { get; set; }
     public DbSet<ReservationDailyPrice> ReservationDailyPrices { get; set; }
     public DbSet<FolioTransaction> FolioTransactions { get; set; }
-    
+    public DbSet<ReservationNote> ReservationNotes { get; set; }
+    public DbSet<ReservationRequest> ReservationRequests { get; set; }
+    public DbSet<ReservationLog> ReservationLogs { get; set; }
+    public DbSet<User> Users { get; set; }
+        
     // Add other DbSets as needed for future modules
     public DbSet<Guest> Guests { get; set; }
     public DbSet<Definition> Definitions { get; set; }
@@ -44,10 +48,20 @@ public class ApplicationDbContext : DbContext
     public DbSet<StockTransaction> StockTransactions { get; set; }
     
     // Sales & Marketing
-    public DbSet<Agency> Agencies { get; set; }
-    public DbSet<Rate> Rates { get; set; }
+        public DbSet<Agency> Agencies { get; set; }
+        public DbSet<AgencyStopSell> AgencyStopSells { get; set; }
+        public DbSet<AgencyQuota> AgencyQuotas { get; set; }
+        public DbSet<AgencyDiscount> AgencyDiscounts { get; set; }
+        public DbSet<AgencyOfficial> AgencyOfficials { get; set; }
+        public DbSet<AgencyFolioRouting> AgencyFolioRoutings { get; set; }
+
+    public DbSet<RoomDailyRate> RoomDailyRates { get; set; }
     public DbSet<Contract> Contracts { get; set; }
+    public DbSet<ContractPeriod> ContractPeriods { get; set; }
+    public DbSet<ContractPrice> ContractPrices { get; set; }
     public DbSet<Campaign> Campaigns { get; set; }
+    public DbSet<Rate> Rates { get; set; }
+    public DbSet<GroupBooking> GroupBookings { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

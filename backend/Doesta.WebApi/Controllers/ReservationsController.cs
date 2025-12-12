@@ -19,11 +19,13 @@ public class ReservationsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Reservation>>> GetReservations([FromQuery] string? status, [FromQuery] string? filter)
     {
+        Console.WriteLine($"[API] GetReservations called. Status: '{status}', Filter: '{filter}'");
         try 
         {
             var query = _context.Reservations
                 .Include(r => r.Guests)
                 .Include(r => r.Guest) // Include main guest profile for VIP check
+                .Include(r => r.Room) // Include Room details for table
                 .AsQueryable();
 
             if (!string.IsNullOrEmpty(status) && status != "all")
@@ -59,14 +61,32 @@ public class ReservationsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<Reservation>> GetReservation(int id)
     {
-        var reservation = await _context.Reservations
-            .Include(r => r.Guests)
-            .Include(r => r.DailyPrices)
-            .Include(r => r.FolioTransactions)
-            .FirstOrDefaultAsync(r => r.Id == id);
-            
-        if (reservation == null) return NotFound();
-        return reservation;
+        Console.WriteLine($"[API] Fetching reservation {id}...");
+        try
+        {
+            var reservation = await _context.Reservations
+                .Include(r => r.Guests)
+                .Include(r => r.Room) // Include Room details
+                .Include(r => r.DailyPrices)
+                .Include(r => r.FolioTransactions)
+                .Include(r => r.Notes)
+                .Include(r => r.Requests)
+                .FirstOrDefaultAsync(r => r.Id == id);
+                
+            if (reservation == null) 
+            {
+                Console.WriteLine($"[API] Reservation {id} not found.");
+                return NotFound();
+            }
+            Console.WriteLine($"[API] Found reservation {id}. Room: {reservation.Room?.Number ?? "None"}");
+            return reservation;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[API] ERROR fetching reservation {id}: {ex.Message}");
+            Console.WriteLine(ex.StackTrace);
+            return StatusCode(500, "Internal Server Error: " + ex.Message);
+        }
     }
 
     // --- Core Operations ---
@@ -83,7 +103,14 @@ public class ReservationsController : ControllerBase
 
         if (isOccupied) return BadRequest("Room is already occupied.");
 
+        // Auto-generate VoucherNo if missing
+        if (string.IsNullOrEmpty(reservation.VoucherNo))
+        {
+            reservation.VoucherNo = "VOU-" + new Random().Next(10000, 99999);
+        }
+
         _context.Reservations.Add(reservation);
+        await LogAction(reservation.Id, "Create", $"Reservation created for {reservation.GuestName}. Room: {reservation.RoomType}");
         await _context.SaveChangesAsync();
 
         // Generate Daily Prices ONLY if not provided by frontend
@@ -121,9 +148,70 @@ public class ReservationsController : ControllerBase
 
         // Update Header fields
         _context.Entry(existing).CurrentValues.SetValues(reservation);
+        await LogAction(id, "Update", "Reservation details updated.");
         
         await _context.SaveChangesAsync();
         return NoContent();
+    }
+
+    [HttpPost("{id}/recalculate-price")]
+    public async Task<IActionResult> RecalculatePrice(int id, [FromBody] decimal? manualDailyPrice)
+    {
+        var reservation = await _context.Reservations
+            .Include(r => r.DailyPrices)
+            .FirstOrDefaultAsync(r => r.Id == id);
+            
+        if (reservation == null) return NotFound();
+
+        // 1. Clear existing prices (simplified logic: wipe and recreate)
+        // In real app maybe preserve manual overrides unless forced
+        _context.ReservationDailyPrices.RemoveRange(reservation.DailyPrices);
+        
+        // 2. Calculate basics
+        var nights = (int)(reservation.CheckOutDate - reservation.CheckInDate).TotalDays;
+        if (nights <= 0) nights = 1; // Fallback
+
+        decimal totalPrice = 0;
+        
+        for (int i = 0; i < nights; i++)
+        {
+            decimal dailyRate = 0;
+            
+            // If manual price active and provided
+            if (reservation.ManualPriceActive && manualDailyPrice.HasValue)
+            {
+                dailyRate = manualDailyPrice.Value;
+            }
+            else
+            {
+                // Basic logic: Standard Room = 100, Delux = 150
+                // This would normally come from a RateManager service
+                decimal baseRate = reservation.RoomType == "DLX" ? 150 : 100;
+                // Add for adults
+                baseRate += (reservation.AdultCount - 1) * 30; // Extra adult cost
+                
+                dailyRate = baseRate;
+            }
+
+            reservation.DailyPrices.Add(new ReservationDailyPrice
+            {
+                Date = reservation.CheckInDate.AddDays(i),
+                Price = dailyRate,
+                Currency = reservation.Currency,
+                RoomType = reservation.RoomType,
+                BoardType = reservation.BoardType,
+                IsManualPrice = reservation.ManualPriceActive
+            });
+            
+            totalPrice += dailyRate;
+        }
+        
+        // Update Total
+        reservation.TotalPrice = totalPrice;
+        // Also update balance cache logic if needed, but TotalPrice is the source of truth for "Should Pay"
+        
+        await _context.SaveChangesAsync();
+        return Ok(reservation);
     }
 
     // --- Guest Management ---
@@ -139,6 +227,20 @@ public class ReservationsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetReservation), new { id = id }, guest);
+    }
+
+    [HttpPut("guests/{guestId}")]
+    public async Task<IActionResult> UpdateGuest(int guestId, ReservationGuest guest)
+    {
+        if (guestId != guest.Id) return BadRequest();
+
+        var existing = await _context.ReservationGuests.FindAsync(guestId);
+        if (existing == null) return NotFound();
+
+        _context.Entry(existing).CurrentValues.SetValues(guest);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
     }
 
     [HttpDelete("guests/{guestId}")]
@@ -180,6 +282,25 @@ public class ReservationsController : ControllerBase
 
         return Ok(transaction);
     }
+    
+    [HttpDelete("folio/{transactionId}")]
+    public async Task<IActionResult> DeleteFolioTransaction(int transactionId)
+    {
+        var transaction = await _context.FolioTransactions.FindAsync(transactionId);
+        if (transaction == null) return NotFound();
+
+        var reservation = await _context.Reservations.FindAsync(transaction.ReservationId);
+        
+        // Revert balance updates
+        if (reservation != null && transaction.Credit > 0)
+        {
+            reservation.PaidAmount -= transaction.Credit;
+        }
+        
+        _context.FolioTransactions.Remove(transaction);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
 
     // --- Check In/Out ---
 
@@ -193,6 +314,7 @@ public class ReservationsController : ControllerBase
         var room = await _context.Rooms.FindAsync(reservation.RoomId);
         if (room != null) { room.Status = "Occupied"; room.IsOccupied = true; }
         
+        await LogAction(id, "CheckIn", $"Checked in to room {room?.Number}");
         await _context.SaveChangesAsync();
         return Ok(reservation);
     }
@@ -207,8 +329,74 @@ public class ReservationsController : ControllerBase
         var room = await _context.Rooms.FindAsync(reservation.RoomId);
         if (room != null) { room.Status = "Dirty"; room.IsOccupied = false; }
         
+        await LogAction(id, "CheckOut", "Checked out.");
         await _context.SaveChangesAsync();
-        return Ok(reservation);
+        return Ok();
+    }
+
+    // --- Detail Tabs Management (Notes, Requests) ---
+
+    [HttpPost("{id}/notes")]
+    public async Task<ActionResult<ReservationNote>> AddNote(int id, ReservationNote note)
+    {
+        var reservation = await _context.Reservations.FindAsync(id);
+        if (reservation == null) return NotFound();
+
+        note.ReservationId = id;
+        note.CreatedAt = DateTime.UtcNow;
+        _context.ReservationNotes.Add(note);
+        await _context.SaveChangesAsync();
+
+        return Ok(note);
+    }
+    
+    [HttpDelete("notes/{noteId}")]
+    public async Task<IActionResult> DeleteNote(int noteId)
+    {
+        var note = await _context.ReservationNotes.FindAsync(noteId);
+        if (note == null) return NotFound();
+        
+        _context.ReservationNotes.Remove(note);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("{id}/requests")]
+    public async Task<ActionResult<ReservationRequest>> AddRequest(int id, ReservationRequest request)
+    {
+        var reservation = await _context.Reservations.FindAsync(id);
+        if (reservation == null) return NotFound();
+
+        request.ReservationId = id;
+        request.CreatedAt = DateTime.UtcNow;
+        _context.ReservationRequests.Add(request);
+        await _context.SaveChangesAsync();
+
+        return Ok(request);
+    }
+    
+    [HttpPut("requests/{requestId}")]
+    public async Task<IActionResult> UpdateRequest(int requestId, ReservationRequest request)
+    {
+        if (requestId != request.Id) return BadRequest();
+        
+        var existing = await _context.ReservationRequests.FindAsync(requestId);
+        if (existing == null) return NotFound();
+        
+        _context.Entry(existing).CurrentValues.SetValues(request);
+        await _context.SaveChangesAsync();
+        return NoContent();
+    }
+    
+    [HttpDelete("requests/{requestId}")]
+    public async Task<IActionResult> DeleteRequest(int requestId)
+    {
+        var req = await _context.ReservationRequests.FindAsync(requestId);
+        if (req == null) return NotFound();
+        
+        _context.ReservationRequests.Remove(req);
+        await _context.SaveChangesAsync();
+        return NoContent();
     }
     // --- Seeding ---
 
@@ -237,7 +425,8 @@ public class ReservationsController : ControllerBase
                 GuestName = "Ahmet Yılmaz",
                 RoomId = r101Id,
                 RoomType = "STD",
-                Agency = "Booking.com",
+                AgencyId = 1, // Booking.com
+                // Agency = "Booking.com",
                 CheckInDate = DateTime.Today.AddDays(-1),
                 CheckOutDate = DateTime.Today.AddDays(2),
                 Status = "CheckedIn",
@@ -252,8 +441,8 @@ public class ReservationsController : ControllerBase
                 Note = "Late Check-out request",
                 Guests = new List<ReservationGuest>
                 {
-                    new ReservationGuest { FirstName = "Ahmet", LastName = "Yılmaz", IsMainGuest = true, Nationality = "TR" },
-                    new ReservationGuest { FirstName = "Ayşe", LastName = "Yılmaz", IsMainGuest = false, Nationality = "TR" }
+                    new ReservationGuest { FirstName = "Ahmet", LastName = "Yılmaz", IsMainGuest = true, Nationality = "TR", Phone = "5551234567", IdNumber = "12345678901" },
+                    new ReservationGuest { FirstName = "Ayşe", LastName = "Yılmaz", IsMainGuest = false, Nationality = "TR", Phone = "5559876543", IdNumber = "10987654321" }
                 },
                 FolioTransactions = new List<FolioTransaction>
                 {
@@ -267,7 +456,8 @@ public class ReservationsController : ControllerBase
                 GuestName = "John Doe",
                 RoomId = r205Id,
                 RoomType = "DLX",
-                Agency = "Direct",
+                AgencyId = 2, // Direct
+                // Agency = "Direct",
                 CheckInDate = DateTime.Today,
                 CheckOutDate = DateTime.Today.AddDays(5),
                 Status = "Confirmed",
@@ -289,7 +479,8 @@ public class ReservationsController : ControllerBase
                 GuestName = "Mehmet Demir",
                 RoomId = r102Id,
                 RoomType = "STD",
-                Agency = "Expedia",
+                AgencyId = 2, // Expedia
+                // Agency = "Expedia",
                 CheckInDate = DateTime.Today.AddDays(1),
                 CheckOutDate = DateTime.Today.AddDays(4),
                 Status = "Confirmed",
@@ -316,5 +507,168 @@ public class ReservationsController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok("Reservations seeded successfully.");
+    }
+
+    [HttpPost("{id}/demo-data")]
+    public async Task<IActionResult> GenerateDemoData(int id)
+    {
+        var reservation = await _context.Reservations
+            .Include(r => r.FolioTransactions)
+            .Include(r => r.Requests)
+            .Include(r => r.Notes)
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (reservation == null) return NotFound();
+
+        var rnd = new Random();
+
+        // 1. Add Folio Transactions
+        var depts = new[] { "RST", "BAR", "LBY", "SPA", "MIN" };
+        var descs = new[] { "Restaurant Dinner", "Pool Bar Drink", "Lobby Tea", "Massage Therapy", "Mini Bar Item" };
+        
+        for (int i = 0; i < 5; i++)
+        {
+            var idx = rnd.Next(depts.Length);
+            reservation.FolioTransactions.Add(new FolioTransaction
+            {
+                Date = DateTime.Now.AddHours(-rnd.Next(1, 48)),
+                DepartmentCode = depts[idx],
+                Description = descs[idx],
+                Debit = (decimal)(rnd.NextDouble() * 50 + 5),
+                Credit = 0,
+                Currency = "EUR",
+                CreatedBy = "DemoUser"
+            });
+        }
+
+        // 2. Add Requests
+        var requestTitles = new[] { "Extra Towel", "AC Repair", "Late Check-out", "Wake up Call", "Luggage Help" };
+        for (int i = 0; i < 3; i++)
+        {
+            var rIdx = rnd.Next(requestTitles.Length);
+            reservation.Requests.Add(new ReservationRequest
+            {
+                Title = requestTitles[rIdx],
+                Description = $"Customer requested {requestTitles[rIdx]}",
+                Type = i % 3 == 0 ? "Complaint" : "Request",
+                Status = i % 2 == 0 ? "New" : "Completed",
+                Priority = "Normal",
+                Department = i % 2 == 0 ? "HK" : "FO",
+                CreatedAt = DateTime.Now.AddMinutes(-rnd.Next(10, 500)),
+                CreatedBy = "DemoUser"
+            });
+        }
+
+        // 3. Add Notes
+        var notes = new[] { "Guest prefers high floor", "Allergic to nuts", "Vip Guest" };
+        foreach (var n in notes)
+        {
+            if (rnd.Next(2) == 0) // 50% chance
+            {
+                reservation.Notes.Add(new ReservationNote
+                {
+                    Message = n,
+                    IsActive = true,
+                    CreatedAt = DateTime.Now.AddDays(-1),
+                    CreatedBy = "System"
+                });
+            }
+        }
+
+        await _context.SaveChangesAsync();
+        await LogAction(id, "DemoData", "Generated demo data for testing");
+
+        return Ok(new { message = "Demo data generated", id });
+    }
+
+    [HttpPost("seed-all-folio")]
+    public async Task<IActionResult> SeedAllFolioData()
+    {
+        var reservations = await _context.Reservations
+            .Include(r => r.FolioTransactions)
+            .ToListAsync();
+
+        var rnd = new Random();
+        var depts = new[] { "RST", "BAR", "LBY", "SPA", "MIN" };
+        var descs = new[] { "Restaurant Dinner", "Pool Bar Drink", "Lobby Tea", "Massage Therapy", "Mini Bar Item" };
+
+        int updatedCount = 0;
+
+        foreach (var r in reservations)
+        {
+            // Only add if no transactions exist, or keep adding?
+            // User: "add for every customer folio randomly"
+            int countToAdd = rnd.Next(3, 7);
+            for (int i = 0; i < countToAdd; i++)
+            {
+                var idx = rnd.Next(depts.Length);
+                r.FolioTransactions.Add(new FolioTransaction
+                {
+                    Date = DateTime.Now.AddHours(-rnd.Next(1, 48)),
+                    DepartmentCode = depts[idx],
+                    Description = descs[idx],
+                    Debit = (decimal)(rnd.NextDouble() * 50 + 5),
+                    Credit = 0,
+                    Currency = "EUR",
+                    CreatedBy = "SystemSeed"
+                });
+            }
+            updatedCount++;
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(new { message = $"Seeded folio data for {updatedCount} reservations." });
+    }
+
+    [HttpPost("fix-vouchers")]
+    public async Task<IActionResult> FixMissingVouchers()
+    {
+        var reservations = await _context.Reservations
+            .Where(r => r.VoucherNo == null || r.VoucherNo == "")
+            .ToListAsync();
+
+        int count = 0;
+        var rnd = new Random();
+        foreach (var r in reservations)
+        {
+            r.VoucherNo = "VOU-" + rnd.Next(100000, 999999);
+            count++;
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(new { message = $"Fixed vouchers for {count} reservations." });
+    }
+
+    [HttpGet("{id}/history")]
+    public async Task<ActionResult<IEnumerable<ReservationLog>>> GetHistory(int id)
+    {
+        return await _context.ReservationLogs
+            .Where(l => l.ReservationId == id)
+            .OrderByDescending(l => l.Date)
+            .ToListAsync();
+    }
+
+    private async Task LogAction(int reservationId, string action, string description)
+    {
+        try 
+        {
+            var log = new ReservationLog
+            {
+                ReservationId = reservationId,
+                Action = action,
+                Description = description,
+                Date = DateTime.UtcNow,
+                User = "System", // Could be HttpContext.User.Identity.Name
+                Module = "Reservation"
+            };
+            _context.ReservationLogs.Add(log);
+            // We usually save changes in the main method, but to be sure logging persists even if main logic fails (if called before), 
+            // or to avoid conflict, we can add it to the tracked context. 
+            // The main method SaveChangesAsync will commit it.
+        }
+        catch(Exception ex)
+        {
+            Console.WriteLine($"Logging failed: {ex.Message}");
+        }
     }
 }

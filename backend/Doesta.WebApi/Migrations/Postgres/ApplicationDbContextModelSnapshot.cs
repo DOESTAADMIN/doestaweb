@@ -391,21 +391,54 @@ namespace Doesta.WebApi.Migrations.Postgres
                     b.Property<DateTime?>("BirthDate")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("BirthPlace")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CarPlate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("City")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Country")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Email")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("EmailContactConsent")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Gender")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("IdIssueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("IdValidDate")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("IdentificationNumber")
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsBlacklist")
+                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsVip")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("KvkkConsent")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("LastName")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MiddleName")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Nationality")
@@ -414,7 +447,22 @@ namespace Doesta.WebApi.Migrations.Postgres
                     b.Property<string>("Notes")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("PassportIssueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PassportNo")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PassportValidDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("PhoneContactConsent")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("PhoneNumber")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -721,8 +769,16 @@ namespace Doesta.WebApi.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ApplyTax")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("BabyCount")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("BedType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("BoardType")
                         .IsRequired()
@@ -737,11 +793,24 @@ namespace Doesta.WebApi.Migrations.Postgres
                     b.Property<int>("ChildCount")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ContractType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Currency")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("DiscountActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ExchangeDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<decimal>("ExchangeRate")
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("GuestId")
@@ -751,7 +820,22 @@ namespace Doesta.WebApi.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("InvoiceAddress")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InvoiceTaxType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InvoiceTitle")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsPaid")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("ManualPriceActive")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Note")
@@ -761,6 +845,23 @@ namespace Doesta.WebApi.Migrations.Postgres
                     b.Property<decimal>("PaidAmount")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Payer")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PriceType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("QTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RealCheckInDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RealCheckOutDate")
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("RoomId")
                         .HasColumnType("INTEGER");
 
@@ -768,12 +869,36 @@ namespace Doesta.WebApi.Migrations.Postgres
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("SaleType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TaxAccount")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TaxIncluded")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TaxNumber")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TaxOffice")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<decimal>("TotalPrice")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("TrackingCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("VoucherNo")
                         .IsRequired()
@@ -782,6 +907,8 @@ namespace Doesta.WebApi.Migrations.Postgres
                     b.HasKey("Id");
 
                     b.HasIndex("GuestId");
+
+                    b.HasIndex("RoomId");
 
                     b.ToTable("Reservations");
                 });
@@ -879,6 +1006,82 @@ namespace Doesta.WebApi.Migrations.Postgres
                     b.HasIndex("ReservationId");
 
                     b.ToTable("ReservationGuests");
+                });
+
+            modelBuilder.Entity("Doesta.WebApi.Models.ReservationNote", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ReservationId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReservationId");
+
+                    b.ToTable("ReservationNotes");
+                });
+
+            modelBuilder.Entity("Doesta.WebApi.Models.ReservationRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Department")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ReservationId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReservationId");
+
+                    b.ToTable("ReservationRequests");
                 });
 
             modelBuilder.Entity("Doesta.WebApi.Models.RevenueGroup", b =>
@@ -1312,7 +1515,15 @@ namespace Doesta.WebApi.Migrations.Postgres
                         .WithMany()
                         .HasForeignKey("GuestId");
 
+                    b.HasOne("Doesta.WebApi.Models.Room", "Room")
+                        .WithMany()
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Guest");
+
+                    b.Navigation("Room");
                 });
 
             modelBuilder.Entity("Doesta.WebApi.Models.ReservationDailyPrice", b =>
@@ -1330,6 +1541,28 @@ namespace Doesta.WebApi.Migrations.Postgres
                 {
                     b.HasOne("Doesta.WebApi.Models.Reservation", "Reservation")
                         .WithMany("Guests")
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Reservation");
+                });
+
+            modelBuilder.Entity("Doesta.WebApi.Models.ReservationNote", b =>
+                {
+                    b.HasOne("Doesta.WebApi.Models.Reservation", "Reservation")
+                        .WithMany("Notes")
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Reservation");
+                });
+
+            modelBuilder.Entity("Doesta.WebApi.Models.ReservationRequest", b =>
+                {
+                    b.HasOne("Doesta.WebApi.Models.Reservation", "Reservation")
+                        .WithMany("Requests")
                         .HasForeignKey("ReservationId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1401,6 +1634,10 @@ namespace Doesta.WebApi.Migrations.Postgres
                     b.Navigation("FolioTransactions");
 
                     b.Navigation("Guests");
+
+                    b.Navigation("Notes");
+
+                    b.Navigation("Requests");
                 });
 #pragma warning restore 612, 618
         }

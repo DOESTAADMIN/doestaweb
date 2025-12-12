@@ -11,6 +11,80 @@ namespace Doesta.WebApi.Data
             context.Database.EnsureDeleted();
             context.Database.EnsureCreated();
 
+            // --- Agencies Seeding ---
+            if (!context.Agencies.Any())
+            {
+                var agencies = new List<Agency>
+                {
+                    new Agency {
+                        Code = "ETS", Name = "ETS Tur", FullName = "Ersoy Turistik Servisleri A.Ş.",
+                        AgencyGroup = "Acenta", Market = "Domestic", Segment = "Leisure",
+                        Email = "info@etstur.com", Phone = "444 0 387",
+                        PriceCode = "BAR", SalesManager = "Ahmet Yılmaz", ContactName = "Mehmet Demir",
+                        Currency = "TRY", PaymentType = "Krediye Kaldır",
+                        ManualPriceActive = true, IsActive = true,
+                        TaxOffice = "Kadıköy", TaxNo = "1234567890", AccountCode = "120.01.001",
+                        Address = "Bağdat Cad. No:1 Kadıköy/İstanbul", InvoiceAddress = "Merkez Mah. Istanbul",
+                        Child1Free = true, Child2Free = true, Child3Free = false,
+                        DefaultNationality = "TR", Source = "Call Center", Payer = "Acente",
+                        AccommodationType = "Sold", DefaultBlock = "Ana Bina", TaxAccount = "Varsayılan"
+                    },
+                    new Agency {
+                        Code = "BK", Name = "Booking.com", FullName = "Booking.com B.V.",
+                        AgencyGroup = "OTA", Market = "Global", Segment = "Online",
+                        Email = "support@booking.com", Phone = "+31 70 770 3884",
+                        PriceCode = "OTA-Rate", SalesManager = "Global Team",
+                        Currency = "EUR", PaymentType = "Krediye Kaldır",
+                        ManualPriceActive = false, IsActive = true,
+                        TaxOffice = "Netherlands", TaxNo = "NL805734958B01", AccountCode = "120.02.001",
+                        Address = "Herengracht 597, Amsterdam",
+                        Child1Free = false, Child2Free = false,
+                        DefaultNationality = "DE", Source = "Online", Payer = "Expedia Collect",
+                         AccommodationType = "Sold"
+                    },
+                    new Agency {
+                        Code = "EXP", Name = "Expedia", FullName = "Expedia Inc.",
+                        AgencyGroup = "OTA", Market = "Global", Segment = "Online",
+                        Email = "partners@expedia.com", Phone = "+1 800 397 3342",
+                        PriceCode = "EXP-Rate", SalesManager = "US Team",
+                        Currency = "USD", PaymentType = "Krediye Kaldır",
+                        ManualPriceActive = false, IsActive = true,
+                        AccountCode = "120.02.002",
+                        DefaultNationality = "US", Source = "Online", Payer = "Expedia Collect",
+                        AccommodationType = "Sold"
+                    }
+                };
+                context.Agencies.AddRange(agencies);
+                context.SaveChanges();
+
+                // Seed Related Data for ETS Tur (Id 1 usually)
+                var ets = context.Agencies.FirstOrDefault(a => a.Code == "ETS");
+                if (ets != null)
+                {
+                    context.AgencyStopSells.Add(new AgencyStopSell { 
+                        AgencyId = ets.Id, StartDate = DateTime.Today, EndDate = DateTime.Today.AddDays(2), 
+                        RoomType = "STD", BoardType = "ALL", Market = "Domestic",
+                        ChannelPriceType = "Main", AllChannels = true
+                    });
+                    
+                    context.AgencyQuotas.Add(new AgencyQuota {
+                        AgencyId = ets.Id, StartDate = DateTime.Today, EndDate = DateTime.Today.AddDays(30),
+                        RoomType = "STD", Guarantee = 5, Quota = 10
+                    });
+
+                    context.AgencyOfficials.Add(new AgencyOfficial {
+                        AgencyId = ets.Id, FullName = "Ali Veli", Position = "Bölge Müdürü", Email = "ali@ets.com", Phone1 = "0212 111 22 33", Gsm = "0532 999 88 77", DecisionPower = "Tam Yetkili"
+                    });
+
+                    context.AgencyFolioRoutings.Add(new AgencyFolioRouting {
+                        AgencyId = ets.Id, DepartmentName = "SPA", RevenueGroup = "Extra", TargetRoomNumber = "9001", StartDate = DateTime.Today, EndDate = DateTime.Today.AddYears(1)
+                    });
+                    
+                    context.SaveChanges();
+                }
+            }
+
+
             // --- Currencies ---
             if (!context.Currencies.Any())
             {
@@ -212,7 +286,8 @@ namespace Doesta.WebApi.Data
                                 CheckOutDate = today.AddMonths(-(k+1) * 2).AddDays(5),
                                 Status = "CheckedOut",
                                 TotalPrice = 1000,
-                                CreatedAt = today.AddMonths(-(k+1) * 3) // Old booking
+                                CreatedAt = today.AddMonths(-(k+1) * 3), // Old booking
+                                VoucherNo = "VOU-" + random.Next(1000, 9999)
                             });
                         }
                     }
@@ -242,12 +317,14 @@ namespace Doesta.WebApi.Data
                                 Status = "CheckedIn",
                                 RoomType = room.Type,
                                 BoardType = random.Next(0, 10) < 3 ? "BB" : (random.Next(0, 10) < 6 ? "HB" : "AI"), // Mix boards
-                                Agency = occupiedCount % 3 == 0 ? "Booking.com" : "Direct",
+                                AgencyId = occupiedCount % 3 == 0 ? 1 : 2, // 1: Booking, 2: Direct
+                                // Agency = occupiedCount % 3 == 0 ? "Booking.com" : "Direct",
                                 CreatedAt = today.AddDays(-random.Next(10, 30)),
                                 SaleType = "Sold",
                                 Payer = "Guest",
                                 BedType = room.Type == "Standart" ? "French" : "King",
                                 TrackingCode = "-",
+                                VoucherNo = "VOU-" + random.Next(10000, 99999),
                                 Guests = new List<ReservationGuest> 
                                 { 
                                     new ReservationGuest 
@@ -281,12 +358,14 @@ namespace Doesta.WebApi.Data
                                 Status = "CheckedIn", 
                                 RoomType = room.Type,
                                 BoardType = "HB",
-                                Agency = "ETS",
+                                AgencyId = 1, // ETS Tur (1)
+                                // Agency = "ETS",
                                 CreatedAt = today.AddDays(-random.Next(5, 20)),
                                 SaleType = "Sold",
                                 Payer = "ETS Tur",
                                 BedType = "Twin",
-                                TrackingCode = "GRP-01"
+                                TrackingCode = "GRP-01",
+                                VoucherNo = "VOU-" + random.Next(10000, 99999)
                             });
                             occupiedCount++;
                         }
@@ -310,12 +389,14 @@ namespace Doesta.WebApi.Data
                                 Status = "Confirmed",
                                 RoomType = room.Type,
                                 BoardType = "AI",
-                                Agency = "Expedia",
+                                AgencyId = 2, // Expedia
+                                // Agency = "Expedia",
                                 CreatedAt = isLastMinute ? today : today.AddDays(-10), // Allow "Bookings Made Today" logic
                                 SaleType = random.Next(0, 20) == 0 ? "Comp" : "Sold",
                                 Payer = "Expedia Collect",
                                 BedType = "King",
-                                TrackingCode = "-"
+                                TrackingCode = "-",
+                                VoucherNo = "VOU-" + random.Next(10000, 99999)
                             });
                         }
                     }
@@ -348,18 +429,56 @@ namespace Doesta.WebApi.Data
                             Status = "Confirmed",
                             RoomType = room.Type,
                             BoardType = random.Next(0, 5) == 0 ? "AI" : "BB",
-                            Agency = random.Next(0, 2) == 0 ? "HotelBeds" : "Expedia",
+                            AgencyId = random.Next(0, 2) == 0 ? 1 : 2, // 1: HotelBeds, 2: Expedia
+                            // Agency = random.Next(0, 2) == 0 ? "HotelBeds" : "Expedia",
                             CreatedAt = bookedToday ? today : today.AddDays(-random.Next(1, 60)),
-                            SaleType = "Sold",
-                            Payer = "Guest",
-                            BedType = "French",
-                            TrackingCode = "-"
-                        });
+                                SaleType = "Sold",
+                                Payer = "Guest",
+                                BedType = "French",
+                                TrackingCode = "-",
+                                VoucherNo = "VOU-" + random.Next(10000, 99999)
+                            });
                     }
 
-                    context.Rooms.UpdateRange(allRooms); 
+                context.Rooms.UpdateRange(allRooms); 
                     context.Reservations.AddRange(reservations);
                     context.SaveChanges();
+                    
+                    // --- SEED DAILY RATES FOR MATRIX ---
+                    // Generate daily rates for next 90 days for all room types
+                    if (!context.RoomDailyRates.Any())
+                    {
+                        var dailyRates = new List<RoomDailyRate>();
+                        var roomTypes = context.RoomTypes.ToList();
+                        
+                        foreach(var rt in roomTypes)
+                        {
+                            decimal basePrice = 100;
+                            if (rt.Code == "DLX") basePrice = 150;
+                            if (rt.Code == "SUI") basePrice = 300;
+                            if (rt.Code == "FAM") basePrice = 200;
+                            
+                            for(int d=0; d<90; d++)
+                            {
+                                var date = DateTime.Today.AddDays(d);
+                                // Weekend higher price
+                                var isWeekend = date.DayOfWeek == DayOfWeek.Friday || date.DayOfWeek == DayOfWeek.Saturday;
+                                var price = basePrice * (isWeekend ? 1.2m : 1.0m);
+                                
+                                dailyRates.Add(new RoomDailyRate
+                                {
+                                    Date = date,
+                                    RoomTypeId = rt.Id,
+                                    Price = price,
+                                    StopSell = false,
+                                    MinStay = 1,
+                                    ClosedToArrival = false
+                                });
+                            }
+                        }
+                        context.RoomDailyRates.AddRange(dailyRates);
+                        context.SaveChanges();
+                    }
                 }
             }
         }

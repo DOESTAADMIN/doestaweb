@@ -1,0 +1,480 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@layer utilities {
+  .animate-ghost {
+    animation: ghostAnimation 5s infinite ease-in-out;
+  }
+
+  .animate-heart {
+    animation: heartbeatAnimation 2s infinite ease-in-out;
+  }
+}
+
+@keyframes heartbeatAnimation {
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-zinc-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+  }
+
+  /* 
+     View Transitions API Styles
+  */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+    height: 100%;
+    overflow: clip;
+  }
+
+  /* The new view expands from the click position */
+  ::view-transition-new(root) {
+    z-index: 9999;
+    will-change: clip-path;
+    animation: ripple-reveal 1.2s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  /* The old view stays static underneath */
+  ::view-transition-old(root) {
+    z-index: 1;
+    animation: none;
+  }
+
+  @keyframes ripple-reveal {
+    0% {
+      clip-path: circle(0px at var(--click-x) var(--click-y));
+    }
+
+    100% {
+      clip-path: circle(var(--click-r) at var(--click-x) var(--click-y));
+    }
+  }
+
+  /* 
+     Performance Optimization:
+     Only apply the heavy transition to all elements when the 'theme-transitioning' class is present.
+     This prevents the browser from constantly listening for changes on every element during normal use.
+     We also removed 'shadow' from the transition properties as it is very expensive to animate.
+  */
+  .theme-transitioning,
+  .theme-transitioning *,
+  .theme-transitioning *::before,
+  .theme-transitioning *::after {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 700ms;
+    transition-delay: 0s;
+  }
+}
+
+/* Custom Scrollbar for Dark Mode */
+.dark ::-webkit-scrollbar-track {
+  @apply bg-gray-800;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-gray-600 hover:bg-gray-500;
+}
+
+@keyframes ghostAnimation {
+  0% {
+    transform: translate(15px, -10px);
+    opacity: 1;
+  }
+
+  25% {
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: translate(-15px, -10px);
+    opacity: 1;
+  }
+
+  75% {
+    opacity: 0.5;
+  }
+
+  100% {
+    transform: translate(15px, -10px);
+    opacity: 1;
+  }
+}
+
+/* GlobalLoader animations */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 2.5s linear infinite;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Inter, Arial, Helvetica, sans-serif;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.custom-select__control {
+  min-height: 42px !important;
+  border-radius: 0.375rem !important;
+  border-color: rgb(209, 213, 219) !important;
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+  font-size: 1rem !important;
+  background-color: white !important;
+  color: #1f2937 !important;
+  box-shadow: none !important;
+  transition:
+    border-color 0.2s ease-in-out,
+    box-shadow 0.2s ease-in-out;
+}
+
+.custom-select__control--is-focused {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5) !important;
+}
+
+.custom-select__value-container {
+  padding: 0px !important;
+}
+
+/* === react-select MULTI SELECT === */
+.custom-select-multi .custom-select__control {
+  min-height: unset !important;
+  height: auto !important;
+  max-height: 180px !important;
+  overflow-y: auto !important;
+  align-items: flex-start !important;
+  flex-wrap: wrap !important;
+}
+
+.custom-select__value-container {
+  padding: 4px !important;
+  gap: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.custom-select__multi-value {
+  margin: 2px !important;
+}
+
+.custom-select-multi .custom-select__control::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-select-multi .custom-select__control::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+.custom-select__menu {
+  z-index: 10500 !important;
+}
+
+.custom-select__menu-list {
+  z-index: 10500 !important;
+}
+
+/* Dark Mode Overrides for React Select */
+.dark .custom-select__control {
+  background-color: #1f2937 !important;
+  /* gray-800 */
+  border-color: #374151 !important;
+  /* gray-700 */
+  color: #e5e7eb !important;
+  /* gray-200 */
+}
+
+.dark .custom-select__single-value {
+  color: #e5e7eb !important;
+  /* gray-200 */
+}
+
+.dark .custom-select__input-container {
+  color: #e5e7eb !important;
+  /* gray-200 */
+}
+
+.dark .custom-select__menu {
+  background-color: #1f2937 !important;
+  /* gray-800 */
+  border: 1px solid #374151 !important;
+  /* gray-700 */
+}
+
+.dark .custom-select__option {
+  background-color: #1f2937 !important;
+  /* gray-800 */
+  color: #e5e7eb !important;
+  /* gray-200 */
+}
+
+.dark .custom-select__option--is-focused {
+  background-color: #374151 !important;
+  /* gray-700 */
+}
+
+.dark .custom-select__option--is-selected {
+  background-color: #3b82f6 !important;
+  /* primary */
+  color: white !important;
+}
+
+.dark .custom-select__multi-value {
+  background-color: #374151 !important;
+  /* gray-700 */
+}
+
+.dark .custom-select__multi-value__label {
+  color: #e5e7eb !important;
+  /* gray-200 */
+}
+
+.dark .custom-select__multi-value__remove:hover {
+  background-color: #4b5563 !important;
+  /* gray-600 */
+  color: #f3f4f6 !important;
+  /* gray-100 */
+}
+
+/* TipTap Editor için */
+.ProseMirror {
+  outline: none !important;
+  border: none !important;
+  background: transparent !important;
+  min-height: 150px;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
+
+/* removed hotel-theme overrides */
+
+/* Login card animations */
+@keyframes slideFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.card-appear {
+  animation: slideFadeIn 600ms ease-out both;
+}
+
+@keyframes subtlePulseOnce {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.06);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.pulse-once {
+  animation: subtlePulseOnce 500ms ease-out 1;
+}
+
+@keyframes slideSwapLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.visible-left {
+  animation: slideSwapLeft 260ms ease-out both;
+}
+
+@keyframes slideSwapRight {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.visible-right {
+  animation: slideSwapRight 260ms ease-out both;
+}
+
+.fade-in-right {
+  animation: fadeInRight 350ms ease-out both;
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Sidebar Custom Scrollbar */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(203, 213, 225, 0.5) transparent;
+  scroll-behavior: smooth;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: rgba(203, 213, 225, 0.4);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.6);
+}
+
+/* Table Row Fade In Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Table Action Button Slide In */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Dark Mode for React Markdown Editor (MdEditor) */
+.dark .rc-md-editor {
+  background-color: rgb(31 41 55) !important;
+  border-color: rgb(75 85 99) !important;
+}
+
+.dark .rc-md-navigation {
+  background-color: rgb(55 65 81) !important;
+  border-color: rgb(75 85 99) !important;
+}
+
+.dark .rc-md-navigation .button-wrap .button {
+  color: rgb(209 213 219) !important;
+}
+
+.dark .rc-md-navigation .button-wrap .button:hover {
+  color: rgb(243 244 246) !important;
+  background-color: rgb(75 85 99) !important;
+}
+
+.dark .rc-md-navigation .button-wrap .button.active {
+  background-color: rgb(75 85 99) !important;
+  color: white !important;
+}
+
+.dark .editor-container,
+.dark .editor-container .sec-md,
+.dark .editor-container .sec-html {
+  background-color: rgb(31 41 55) !important;
+  color: rgb(229 231 235) !important;
+}
+
+.dark .editor-container textarea {
+  background-color: rgb(31 41 55) !important;
+  color: rgb(229 231 235) !important;
+}
+
+.dark .custom-html-style {
+  background-color: rgb(31 41 55) !important;
+  color: rgb(229 231 235) !important;
+}
+
+.dark .rc-md-editor .editor-container .sec-md .input {
+  color: rgb(229 231 235) !important;
+}
+
+.dark .rc-md-editor .drop-wrap {
+  background-color: rgb(55 65 81) !important;
+  border-color: rgb(75 85 99) !important;
+}

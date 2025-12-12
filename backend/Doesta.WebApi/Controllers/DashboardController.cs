@@ -57,8 +57,9 @@ public class DashboardController : ControllerBase
         
         // Today's Bookings (Created Today)
         var bookingsMadeToday = await _context.Reservations
+            .Include(r => r.Agency)
             .Where(r => r.CreatedAt.Date == today)
-            .GroupBy(r => r.Agency)
+            .GroupBy(r => r.AgencyId != null ? r.Agency.Name : "Direct")
             .Select(g => new { name = g.Key, value = g.Count() })
             .ToListAsync();
             
@@ -156,9 +157,9 @@ public class DashboardController : ControllerBase
             // Accommodation Stats
             accommodationStats = new 
             {
-               sold = await _context.Reservations.CountAsync(r => r.Status == "CheckedIn" && (r.Agency != "COMP" && r.Agency != "HOUSE")),
-               comp = await _context.Reservations.CountAsync(r => r.Status == "CheckedIn" && r.Agency == "COMP"),
-               house = await _context.Reservations.CountAsync(r => r.Status == "CheckedIn" && r.Agency == "HOUSE")
+               sold = await _context.Reservations.CountAsync(r => r.Status == "CheckedIn" && r.SaleType == "Sold"),
+               comp = await _context.Reservations.CountAsync(r => r.Status == "CheckedIn" && r.SaleType == "Comp"),
+               house = await _context.Reservations.CountAsync(r => r.Status == "CheckedIn" && r.SaleType == "HouseUse")
             },
 
             // Availability Table
