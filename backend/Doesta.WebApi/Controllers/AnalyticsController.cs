@@ -82,45 +82,60 @@ public class AnalyticsController : ControllerBase
     [HttpGet("distribution/channels")]
     public async Task<ActionResult<DistributionAnalyticsData>> GetChannelAnalytics()
     {
-        // Group by Agency
-        var allRes = await _context.Reservations
-            .Include(r => r.Agency)
-            .Where(r => r.Status != "Cancelled")
-            .Select(r => new { AgencyName = r.Agency != null ? r.Agency.Name : "Direct", r.TotalPrice, r.CheckInDate, r.CheckOutDate })
-            .ToListAsync();
-
-        var grouped = allRes
-            .GroupBy(r => r.AgencyName)
-            .Select(g => 
-            {
-                var revenue = g.Sum(x => x.TotalPrice);
-                var nights = g.Sum(x => (x.CheckOutDate - x.CheckInDate).Days > 0 ? (x.CheckOutDate - x.CheckInDate).Days : 1);
-                
-                return new AnalyticsMetric
-                {
-                    Label = g.Key,
-                    Revenue = revenue,
-                    Count = g.Count(),
-                    ADR = nights > 0 ? revenue / nights : 0,
-                };
-            })
-            .OrderByDescending(x => x.Revenue)
-            .ToList();
-
-        decimal totalRev = grouped.Sum(x => x.Revenue);
-        int totalRes = grouped.Sum(x => x.Count);
-
-        foreach (var item in grouped)
+        try 
         {
-            if (totalRev > 0) item.Percentage = (item.Revenue / totalRev) * 100;
+            // Group by Agency
+            // Group by Agency using explicit join to avoid column reference issues
+            var allRes = await (from r in _context.Reservations
+                                join a in _context.Agencies on r.AgencyId equals a.Id into agencies
+                                from ag in agencies.DefaultIfEmpty()
+                                where r.Status != "Cancelled"
+                                select new { 
+                                    AgencyName = ag != null ? ag.Name : "Direct", 
+                                    r.TotalPrice, 
+                                    r.CheckInDate, 
+                                    r.CheckOutDate 
+                                }).ToListAsync();
+
+            var grouped = allRes
+                .GroupBy(r => r.AgencyName)
+                .Select(g => 
+                {
+                    var revenue = g.Sum(x => x.TotalPrice);
+                    var nights = g.Sum(x => (x.CheckOutDate - x.CheckInDate).Days > 0 ? (x.CheckOutDate - x.CheckInDate).Days : 1);
+                    
+                    return new AnalyticsMetric
+                    {
+                        Label = g.Key,
+                        Revenue = revenue,
+                        Count = g.Count(),
+                        ADR = nights > 0 ? revenue / nights : 0,
+                    };
+                })
+                .OrderByDescending(x => x.Revenue)
+                .ToList();
+
+            decimal totalRev = grouped.Sum(x => x.Revenue);
+            int totalRes = grouped.Sum(x => x.Count);
+
+            foreach (var item in grouped)
+            {
+                if (totalRev > 0) item.Percentage = (item.Revenue / totalRev) * 100;
+            }
+
+            return Ok(new DistributionAnalyticsData
+            {
+                Metrics = grouped,
+                TotalRevenue = totalRev,
+                TotalReservations = totalRes
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetChannelAnalytics: {ex}");
+            return StatusCode(500, ex.Message);
         }
 
-        return Ok(new DistributionAnalyticsData
-        {
-            Metrics = grouped,
-            TotalRevenue = totalRev,
-            TotalReservations = totalRes
-        });
     }
 
     [HttpGet("distribution/geo")]

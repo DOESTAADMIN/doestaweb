@@ -576,7 +576,7 @@ export default function AgencyModal({ isOpen, onClose, agencyId, onSuccess }: Ag
 
                         {/* Footer - Sits at bottom of right panel */}
                         <div className="p-3 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 flex justify-between items-center">
-                            <span className="text-[10px] text-gray-400 font-mono">ID: {agency?.id || 'NEW'} | Updated: {new Date().toLocaleDateString()}</span>
+                            <span className="text-[10px] text-gray-400 font-mono">ID: {agencyId || 'NEW'} | Updated: {new Date().toLocaleDateString()}</span>
                             <div className="flex gap-2">
                                 <Button variant="outline" size="sm" onClick={onClose} className="h-8">Vazgeç</Button>
                                 <Button size="sm" onClick={handleSubmit(onSubmit)} className="bg-blue-600 hover:bg-blue-700 text-white gap-2 h-8">
